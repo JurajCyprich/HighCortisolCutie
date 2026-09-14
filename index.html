@@ -427,17 +427,21 @@
 <div class="grain"></div>
 
 <!-- Zvukové efekty: polož tieto mp3 súbory do rovnakého priečinka ako toto
-     HTML (alebo uprav cesty v poli SOUND_FILES nižšie v <script>).
-     - click.mp3  -> univerzálny zvuk, keď je zvolené "Náhodne"
-     - dog.mp3    -> zvuk, keď je zvolená kategória "Psy"
-     - cat.mp3    -> zvuk, keď je zvolená kategória "Mačky"
-     - fox.mp3    -> zvuk, keď je zvolená kategória "Líšky"
-     - duck.mp3   -> zvuk, keď je zvolená kategória "Kačky"
-     - bird.mp3   -> zvuk, keď je zvolená kategória "Vtáky"
-     - rabbit.mp3 -> zvuk, keď je zvolená kategória "Zajace"
-     - confetti.mp3 -> zvuk, ktorý sa prehrá pri každom 50. pohladkaní (spolu s konfetami)
-     Ten istý súbor sa použije aj pri kliknutí na "Ukáž mi zvieratko",
-     aj pri každom pohladkaní v priblíženom náhľade. -->
+     HTML (alebo uprav pole/y v <script> nižšie: UNIVERSAL_SOUNDS, speciesSounds).
+     Pre každú kategóriu sú 3 varianty zvuku — náhodne sa strieda medzi nimi,
+     ale nikdy sa dvakrát za sebou nezopakuje ten istý súbor.
+
+     - click1.mp3, click2.mp3, click3.mp3   -> univerzálny zvuk pri "Náhodne"
+     - dog1.mp3,   dog2.mp3,   dog3.mp3     -> kategória "Psy"
+     - cat1.mp3,   cat2.mp3,   cat3.mp3     -> kategória "Mačky"
+     - fox1.mp3,   fox2.mp3,   fox3.mp3     -> kategória "Líšky"
+     - duck1.mp3,  duck2.mp3,  duck3.mp3    -> kategória "Kačky"
+     - bird1.mp3,  bird2.mp3,  bird3.mp3    -> kategória "Vtáky"
+     - rabbit1.mp3, rabbit2.mp3, rabbit3.mp3 -> kategória "Zajace"
+     - confetti.mp3 -> zvuk pri každom 50. pohladkaní (spolu s konfetami)
+
+     Rovnaký zdroj (náhodne vybraný z trojice) sa použije aj pri kliknutí na
+     "Ukáž mi zvieratko", aj pri každom pohladkaní v priblíženom náhľade. -->
 
 <div class="wrap">
   <h1 id="headline">Vysoký kortizol. Poďme ho zraziť.</h1>
@@ -549,12 +553,17 @@
   const allSpecies = Object.keys(speciesLabels);
   let currentSpecies = 'random';
 
-  // Universal sound is used when "Náhodne" is selected; each species gets
-  // its own file once a specific category is chosen.
-  const UNIVERSAL_SOUND = 'click.mp3';
+  // Universal sounds are used when "Náhodne" is selected; each species gets
+  // its own 3 files once a specific category is chosen. A random one from
+  // the pool plays each time, but never the same file twice in a row.
+  const UNIVERSAL_SOUNDS = ['click1.mp3', 'click2.mp3', 'click3.mp3'];
   const speciesSounds = {
-    dog: 'dog.mp3', cat: 'cat.mp3', fox: 'fox.mp3',
-    duck: 'duck.mp3', bird: 'bird.mp3', rabbit: 'rabbit.mp3'
+    dog:    ['dog1.mp3', 'dog2.mp3', 'dog3.mp3'],
+    cat:    ['cat1.mp3', 'cat2.mp3', 'cat3.mp3'],
+    fox:    ['fox1.mp3', 'fox2.mp3', 'fox3.mp3'],
+    duck:   ['duck1.mp3', 'duck2.mp3', 'duck3.mp3'],
+    bird:   ['bird1.mp3', 'bird2.mp3', 'bird3.mp3'],
+    rabbit: ['rabbit1.mp3', 'rabbit2.mp3', 'rabbit3.mp3'],
   };
   const soundCache = {};
   function getSound(file){
@@ -573,9 +582,31 @@
       node.play().catch(() => {});
     } catch(e){}
   }
+  let lastAnimalSound = null;
+  function pickSound(pool){
+    if(pool.length === 1) return pool[0];
+    let choice;
+    do{
+      choice = pool[Math.floor(Math.random() * pool.length)];
+    } while(choice === lastAnimalSound);
+    lastAnimalSound = choice;
+    return choice;
+  }
   function playCurrentAnimalSound(){
-    const file = currentSpecies === 'random' ? UNIVERSAL_SOUND : (speciesSounds[currentSpecies] || UNIVERSAL_SOUND);
-    playSound(getSound(file));
+    const pool = currentSpecies === 'random' ? UNIVERSAL_SOUNDS : (speciesSounds[currentSpecies] || UNIVERSAL_SOUNDS);
+    playSound(getSound(pickSound(pool)));
+  }
+  // The sound assigned to the animal currently shown — picked once when it
+  // loads, then reused for every pet click on that same image (no change
+  // mid-petting; only the next loaded animal gets a (possibly) different one).
+  let assignedAnimalSound = null;
+  function assignSoundFor(species){
+    const pool = speciesSounds[species] || UNIVERSAL_SOUNDS;
+    assignedAnimalSound = pickSound(pool);
+  }
+  function playAssignedAnimalSound(){
+    if(!assignedAnimalSound) return;
+    playSound(getSound(assignedAnimalSound));
   }
   // Plays once for every 50th pet, alongside the confetti burst.
   const CONFETTI_SOUND = 'confetti.mp3';
@@ -687,6 +718,7 @@
         caption.textContent = (speciesLabels[species] || 'Zvieratko') + '. Dýchaj pomaly.';
         downloadBtn.dataset.species = speciesLabels[species] || 'zvieratko';
         downloadBtn.style.display = 'inline-flex';
+        assignSoundFor(species);
         success = true;
         break;
       } catch(e){
@@ -772,7 +804,7 @@
 
   lightboxImg.addEventListener('click', (e) => {
     e.stopPropagation();
-    playCurrentAnimalSound();
+    playAssignedAnimalSound();
     lightboxImg.classList.remove('petted');
     // restart the animation even on rapid repeated clicks
     void lightboxImg.offsetWidth;
